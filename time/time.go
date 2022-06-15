@@ -4,14 +4,6 @@ import (
 	"time"
 )
 
-// common time
-const (
-	Minute = 60
-	Hour   = 3600
-	Day    = 3600 * 24
-	Week   = 3600 * 24 * 7
-)
-
 // Timestamp return timestamp in second
 func Timestamp() int64 {
 	return time.Now().Unix()
