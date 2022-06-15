@@ -13,9 +13,8 @@ import (
 type Flags struct {
 	Help    bool   `flag:"h" usage:"help"`
 	Lang    string `flag:"t" usage:"language template" tip:"go|cs" required:"true"`
-	Input   string `flag:"i" usage:"input file or folder" tip:"input" default:"."`
+	Input   string `flag:"i" usage:"input folder" tip:"input" default:"."`
 	Output  string `flag:"o" usage:"output folder" tip:"output" default:"."`
-	Package string `flag:"p" usage:"schema package overwrite" tip:"package"`
 }
 // Supported types: int, string, float64, bool
 ***********************************************************/
@@ -189,10 +188,8 @@ func parseFlags(config interface{}) (map[string]*flag, error) {
 		default:
 			return nil, fmt.Errorf("invalid flag type: [name:%s], [value:%s]", field.Name, field.Type.String())
 		}
-
 		flags[f.name] = f
 	}
-
 	return flags, nil
 }
 
@@ -232,11 +229,28 @@ func parseArgs(flags map[string]*flag) error {
 			return fmt.Errorf("flag -%s is required but not set", f.name)
 		}
 	}
-
 	return nil
 }
 
-//TO-DO implement
 func parseEnv(flags map[string]*flag) error {
+	for name, f := range flags {
+		value, exists := os.LookupEnv(name)
+		if !exists && f.required {
+			return fmt.Errorf("flag -%s has no value", name)
+		}
+		if f.value.isBool() {
+			if exists {
+				_ = f.value.set("true")
+			}
+		} else {
+			if value == "" {
+				return fmt.Errorf("flag -%s has no value", name)
+			}
+			err := f.value.set(value)
+			if err != nil {
+				return err
+			}
+		}
+	}
 	return nil
 }
