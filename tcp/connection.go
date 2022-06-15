@@ -6,15 +6,13 @@ import (
 	"net"
 )
 
-const (
-	packetHeaderSize = 4
-	maxPacketSize    = 1024 * 1024
-)
+const packetHeaderSize = 4
+
+var maxPacketSize = 1024 * 1024
 
 // Connection data structure
 type Connection struct {
-	socket        *net.TCPConn
-	maxPacketSize int
+	socket *net.TCPConn
 }
 
 // Dial an address to create a connection
@@ -30,14 +28,13 @@ func Dial(addr string) (*Connection, error) {
 	}
 
 	return &Connection{
-		socket:        conn,
-		maxPacketSize: maxPacketSize,
+		socket: conn,
 	}, nil
 }
 
 // Set max packet size (default: 1024 * 1024)
-func (c *Connection) SetMaxPacketSize(size int) {
-	c.maxPacketSize = size
+func SetMaxPacketSize(size int) {
+	maxPacketSize = size
 }
 
 // Receive data from socket
@@ -79,8 +76,6 @@ func (c *Connection) Close() {
 func (c *Connection) readPacketSize() (int, error) {
 	header := make([]byte, packetHeaderSize)
 	bytesRead, err := c.socket.Read(header)
-	fmt.Println("]]]]]]]]", err)
-	fmt.Println("]]]]]]]]", bytesRead)
 	if err != nil || bytesRead != packetHeaderSize {
 		return 0, fmt.Errorf("read socket error from %s", c.socket.RemoteAddr())
 	}
@@ -88,14 +83,14 @@ func (c *Connection) readPacketSize() (int, error) {
 	if length == 0 {
 		return 0, fmt.Errorf("empty packet from %s", c.socket.RemoteAddr())
 	}
-	if length > c.maxPacketSize {
+	if length > maxPacketSize {
 		return 0, fmt.Errorf("data overflow from %s", c.socket.RemoteAddr())
 	}
 	return length, nil
 }
 
 func (c *Connection) writePacketSize(length int) error {
-	if length > c.maxPacketSize {
+	if length > maxPacketSize {
 		return fmt.Errorf("data overflow write to %s", c.socket.RemoteAddr())
 	}
 	header := make([]byte, packetHeaderSize)
