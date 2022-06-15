@@ -20,6 +20,37 @@ type Flags struct {
 // Supported types: int, string, float64, bool
 ***********************************************************/
 
+// Parse command line arguments
+func ParseCommandLine(config interface{}) error {
+	flags, err := parseFlags(config)
+	if err != nil {
+		return nil
+	}
+	return parseArgs(flags)
+}
+
+func ParseEnvironment(config interface{}) error {
+	flags, err := parseFlags(config)
+	if err != nil {
+		return nil
+	}
+	return parseEnv(flags)
+}
+
+// Usage print usage
+func Usage() {
+	file := path.Base(os.Args[0])
+	fmt.Printf("\nUsage: %s ", file)
+	for _, f := range flags {
+		fmt.Printf("[-%s %s]", f.name, f.tip)
+	}
+	fmt.Print("\n\nOptions:\n")
+	for _, f := range flags {
+		fmt.Printf("    -%s:    %s\n", f.name, f.usage)
+	}
+	fmt.Println("")
+}
+
 var flags map[string]*flag
 
 type flag struct {
@@ -106,16 +137,14 @@ func (f *floatValue) set(s string) error {
 
 func (f *floatValue) isBool() bool { return false }
 
-// Parse flag
-func Parse(config interface{}) error {
+func parseFlags(config interface{}) (map[string]*flag, error) {
 	flags = make(map[string]*flag)
 
 	info := reflect.TypeOf(config)
 	if info.Kind() != reflect.Ptr {
-		return fmt.Errorf("must use pointer of config struct")
+		return nil, fmt.Errorf("must use pointer of config struct")
 	}
 	info = info.Elem()
-
 	value := reflect.ValueOf(config)
 	value = value.Elem()
 
@@ -127,7 +156,7 @@ func Parse(config interface{}) error {
 
 		f.name = field.Tag.Get("flag")
 		if f.name == "" {
-			return fmt.Errorf("flag is empty: %s", field.Name)
+			return nil, fmt.Errorf("flag is empty: %s", field.Name)
 		}
 		f.defaultValue = field.Tag.Get("default")
 		f.usage = field.Tag.Get("usage")
@@ -144,7 +173,7 @@ func Parse(config interface{}) error {
 			if f.defaultValue != "" {
 				v, err = strconv.ParseInt(f.defaultValue, 10, 32)
 				if err != nil {
-					return fmt.Errorf("invalid flag default value: [name:%s], [value:%s]", field.Name, f.defaultValue)
+					return nil, fmt.Errorf("invalid flag default value: [name:%s], [value:%s]", field.Name, f.defaultValue)
 				}
 			}
 			f.value = newIntValue(int(v), (*int)(unsafe.Pointer(value.Field(i).Addr().Pointer())))
@@ -153,19 +182,22 @@ func Parse(config interface{}) error {
 			if f.defaultValue != "" {
 				v, err = strconv.ParseFloat(f.defaultValue, 64)
 				if err != nil {
-					return fmt.Errorf("invalid flag default value: [name:%s], [value:%s]", field.Name, f.defaultValue)
+					return nil, fmt.Errorf("invalid flag default value: [name:%s], [value:%s]", field.Name, f.defaultValue)
 				}
 			}
 			f.value = newFloatValue(v, (*float64)(unsafe.Pointer(value.Field(i).Addr().Pointer())))
 		default:
-			return fmt.Errorf("invalid flag type: [name:%s], [value:%s]", field.Name, field.Type.String())
+			return nil, fmt.Errorf("invalid flag type: [name:%s], [value:%s]", field.Name, field.Type.String())
 		}
 
 		flags[f.name] = f
 	}
 
-	args := os.Args[1:]
+	return flags, nil
+}
 
+func parseArgs(flags map[string]*flag) error {
+	args := os.Args[1:]
 	for len(args) > 0 {
 		s := args[0]
 		if len(s) < 2 || s[0] != '-' {
@@ -187,7 +219,7 @@ func Parse(config interface{}) error {
 			if len(args) == 0 || args[0][0] == '-' {
 				return fmt.Errorf("flag -%s has no value", name)
 			}
-			err = f.value.set(args[0])
+			err := f.value.set(args[0])
 			if err != nil {
 				return err
 			}
@@ -204,16 +236,7 @@ func Parse(config interface{}) error {
 	return nil
 }
 
-// Usage print usage
-func Usage() {
-	file := path.Base(os.Args[0])
-	fmt.Printf("\nUsage: %s ", file)
-	for _, f := range flags {
-		fmt.Printf("[-%s %s]", f.name, f.tip)
-	}
-	fmt.Print("\n\nOptions:\n")
-	for _, f := range flags {
-		fmt.Printf("    -%s:    %s\n", f.name, f.usage)
-	}
-	fmt.Println("")
+//TO-DO implement
+func parseEnv(flags map[string]*flag) error {
+	return nil
 }
