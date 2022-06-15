@@ -78,8 +78,10 @@ func (c *Connection) Close() {
 
 func (c *Connection) readPacketSize() (int, error) {
 	header := make([]byte, packetHeaderSize)
-	size, err := c.socket.Read(header)
-	if err != nil || size != packetHeaderSize {
+	bytesRead, err := c.socket.Read(header)
+	fmt.Println("]]]]]]]]", err)
+	fmt.Println("]]]]]]]]", bytesRead)
+	if err != nil || bytesRead != packetHeaderSize {
 		return 0, fmt.Errorf("read socket error from %s", c.socket.RemoteAddr())
 	}
 	length := int(binary.LittleEndian.Uint32(header))
