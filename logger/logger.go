@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sync/atomic"
 )
 
 // log levels
@@ -38,89 +39,92 @@ var (
 		"[ERROR]   ",
 		"[CRITICAL]",
 	}
-	logLevel = WARN
+	logLevel atomic.Int32
+	exit     = os.Exit // replaced in tests
 )
 
+func init() { logLevel.Store(WARN) }
+
 // Debug logs
-func Debug(v ...interface{}) {
-	if logLevel == DEBUG {
+func Debug(v ...any) {
+	if logLevel.Load() == DEBUG {
 		writeLog(DEBUG, v)
 	}
 }
 
 // Info logs
-func Info(v ...interface{}) {
-	if logLevel <= INFO {
+func Info(v ...any) {
+	if logLevel.Load() <= INFO {
 		writeLog(INFO, v)
 	}
 }
 
 // Notice logs
-func Notice(v ...interface{}) {
-	if logLevel <= NOTICE {
+func Notice(v ...any) {
+	if logLevel.Load() <= NOTICE {
 		writeLog(NOTICE, v)
 	}
 }
 
 // Warn logs
-func Warn(v ...interface{}) {
-	if logLevel <= WARN {
+func Warn(v ...any) {
+	if logLevel.Load() <= WARN {
 		writeLog(WARN, v)
 	}
 }
 
 // Error logs
-func Error(v ...interface{}) {
-	if logLevel <= ERROR {
+func Error(v ...any) {
+	if logLevel.Load() <= ERROR {
 		writeLog(ERROR, v)
 	}
 }
 
 // Critical logs
-func Critical(v ...interface{}) {
+func Critical(v ...any) {
 	writeLog(CRITICAL, v)
-	os.Exit(1)
+	exit(1)
 }
 
 // Debugf logs
-func Debugf(format string, v ...interface{}) {
-	if logLevel == DEBUG {
+func Debugf(format string, v ...any) {
+	if logLevel.Load() == DEBUG {
 		writeFormattedLog(DEBUG, format, v)
 	}
 }
 
 // Infof logs
-func Infof(format string, v ...interface{}) {
-	if logLevel <= INFO {
+func Infof(format string, v ...any) {
+	if logLevel.Load() <= INFO {
 		writeFormattedLog(INFO, format, v)
 	}
 }
 
 // Noticef logs
-func Noticef(format string, v ...interface{}) {
-	if logLevel <= NOTICE {
+func Noticef(format string, v ...any) {
+	if logLevel.Load() <= NOTICE {
 		writeFormattedLog(NOTICE, format, v)
 	}
 }
 
 // Warnf logs
-func Warnf(format string, v ...interface{}) {
-	if logLevel <= WARN {
+func Warnf(format string, v ...any) {
+	if logLevel.Load() <= WARN {
 		writeFormattedLog(WARN, format, v)
 	}
 }
 
 // Errorf logs
-func Errorf(format string, v ...interface{}) {
-	if logLevel <= ERROR {
+func Errorf(format string, v ...any) {
+	if logLevel.Load() <= ERROR {
 		writeFormattedLog(ERROR, format, v)
 	}
 }
 
 // Criticalf logs
-func Criticalf(format string, v ...interface{}) {
+func Criticalf(format string, v ...any) {
 	writeFormattedLog(CRITICAL, format, v)
-	os.Exit(1)
+	exit(1)
 }
 
 // SetLevel sets level of logging
@@ -128,7 +132,7 @@ func SetLevel(level int) error {
 	if level < DEBUG || level > CRITICAL {
 		return fmt.Errorf("invalid log level: %d", level)
 	}
-	logLevel = level
+	logLevel.Store(int32(level))
 	return nil
 }
 
@@ -137,12 +141,12 @@ func position() string {
 	return fmt.Sprint(filepath.Base(file), ":", line, ":")
 }
 
-func writeLog(level int, v []interface{}) {
+func writeLog(level int, v []any) {
 	//color, now, [level], position, content " ▶ "
 	log.Println(logColors[level], logStrs[level], position(), fmt.Sprint(v...), " ▶ \x1b[0m")
 }
 
-func writeFormattedLog(level int, format string, v []interface{}) {
+func writeFormattedLog(level int, format string, v []any) {
 	//color, now, [level], position, content " ▶ "
 	log.Println(logColors[level], logStrs[level], position(), fmt.Sprintf(format, v...), " ▶ \x1b[0m")
 

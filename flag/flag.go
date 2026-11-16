@@ -6,7 +6,7 @@ import (
 	"path"
 	"reflect"
 	"strconv"
-	"unsafe"
+	"strings"
 )
 
 /**********************************************************
@@ -20,18 +20,18 @@ type Flags struct {
 ***********************************************************/
 
 // Parse command line arguments
-func ParseCommandLine(config interface{}) error {
+func ParseCommandLine(config any) error {
 	flags, err := parseFlags(config)
 	if err != nil {
-		return nil
+		return err
 	}
 	return parseArgs(flags)
 }
 
-func ParseEnvironment(config interface{}) error {
+func ParseEnvironment(config any) error {
 	flags, err := parseFlags(config)
 	if err != nil {
-		return nil
+		return err
 	}
 	return parseEnv(flags)
 }
@@ -64,7 +64,7 @@ type flag struct {
 }
 
 type value interface {
-	get() interface{}
+	get() any
 	set(string) error
 	isBool() bool
 }
@@ -76,7 +76,7 @@ func newBoolValue(val bool, p *bool) *boolValue {
 	return (*boolValue)(p)
 }
 
-func (b *boolValue) get() interface{} { return bool(*b) }
+func (b *boolValue) get() any { return bool(*b) }
 
 func (b *boolValue) set(s string) error {
 	v, err := strconv.ParseBool(s)
@@ -93,7 +93,7 @@ func newStringValue(val string, p *string) *stringValue {
 	return (*stringValue)(p)
 }
 
-func (s *stringValue) get() interface{} { return string(*s) }
+func (s *stringValue) get() any { return string(*s) }
 
 func (s *stringValue) set(val string) error {
 	*s = stringValue(val)
@@ -109,7 +109,7 @@ func newIntValue(val int, p *int) *intValue {
 	return (*intValue)(p)
 }
 
-func (i *intValue) get() interface{} { return int(*i) }
+func (i *intValue) get() any { return int(*i) }
 
 func (i *intValue) set(s string) error {
 	v, err := strconv.ParseInt(s, 0, strconv.IntSize)
@@ -126,7 +126,7 @@ func newFloatValue(val float64, p *float64) *floatValue {
 	return (*floatValue)(p)
 }
 
-func (f *floatValue) get() interface{} { return float64(*f) }
+func (f *floatValue) get() any { return float64(*f) }
 
 func (f *floatValue) set(s string) error {
 	v, err := strconv.ParseFloat(s, 64)
@@ -136,11 +136,11 @@ func (f *floatValue) set(s string) error {
 
 func (f *floatValue) isBool() bool { return false }
 
-func parseFlags(config interface{}) (map[string]*flag, error) {
+func parseFlags(config any) (map[string]*flag, error) {
 	flags = make(map[string]*flag)
 
 	info := reflect.TypeOf(config)
-	if info.Kind() != reflect.Ptr {
+	if info == nil || info.Kind() != reflect.Ptr || info.Elem().Kind() != reflect.Struct {
 		return nil, fmt.Errorf("must use pointer of config struct")
 	}
 	info = info.Elem()
@@ -152,6 +152,9 @@ func parseFlags(config interface{}) (map[string]*flag, error) {
 	for i := 0; i < num; i++ {
 		f := &flag{}
 		field := info.Field(i)
+		if !field.IsExported() {
+			return nil, fmt.Errorf("flag field must be exported: %s", field.Name)
+		}
 
 		f.name = field.Tag.Get("flag")
 		if f.name == "" {
@@ -164,18 +167,18 @@ func parseFlags(config interface{}) (map[string]*flag, error) {
 
 		switch value.Field(i).Interface().(type) {
 		case bool:
-			f.value = newBoolValue(f.defaultValue == "true", (*bool)(unsafe.Pointer(value.Field(i).Addr().Pointer())))
+			f.value = newBoolValue(f.defaultValue == "true", value.Field(i).Addr().Interface().(*bool))
 		case string:
-			f.value = newStringValue(f.defaultValue, (*string)(unsafe.Pointer(value.Field(i).Addr().Pointer())))
+			f.value = newStringValue(f.defaultValue, value.Field(i).Addr().Interface().(*string))
 		case int:
 			var v int64
 			if f.defaultValue != "" {
-				v, err = strconv.ParseInt(f.defaultValue, 10, 32)
+				v, err = strconv.ParseInt(f.defaultValue, 0, strconv.IntSize)
 				if err != nil {
 					return nil, fmt.Errorf("invalid flag default value: [name:%s], [value:%s]", field.Name, f.defaultValue)
 				}
 			}
-			f.value = newIntValue(int(v), (*int)(unsafe.Pointer(value.Field(i).Addr().Pointer())))
+			f.value = newIntValue(int(v), value.Field(i).Addr().Interface().(*int))
 		case float64:
 			var v float64
 			if f.defaultValue != "" {
@@ -184,7 +187,7 @@ func parseFlags(config interface{}) (map[string]*flag, error) {
 					return nil, fmt.Errorf("invalid flag default value: [name:%s], [value:%s]", field.Name, f.defaultValue)
 				}
 			}
-			f.value = newFloatValue(v, (*float64)(unsafe.Pointer(value.Field(i).Addr().Pointer())))
+			f.value = newFloatValue(v, value.Field(i).Addr().Interface().(*float64))
 		default:
 			return nil, fmt.Errorf("invalid flag type: [name:%s], [value:%s]", field.Name, field.Type.String())
 		}
@@ -213,7 +216,7 @@ func parseArgs(flags map[string]*flag) error {
 		if f.value.isBool() {
 			_ = f.value.set("true")
 		} else {
-			if len(args) == 0 || args[0][0] == '-' {
+			if len(args) == 0 || strings.HasPrefix(args[0], "-") {
 				return fmt.Errorf("flag -%s has no value", name)
 			}
 			err := f.value.set(args[0])
@@ -235,21 +238,20 @@ func parseArgs(flags map[string]*flag) error {
 func parseEnv(flags map[string]*flag) error {
 	for name, f := range flags {
 		value, exists := os.LookupEnv(name)
-		if !exists && f.required {
-			return fmt.Errorf("flag -%s has no value", name)
-		}
-		if f.value.isBool() {
-			if exists {
-				_ = f.value.set("true")
-			}
-		} else {
-			if value == "" {
+		if !exists {
+			if f.required {
 				return fmt.Errorf("flag -%s has no value", name)
 			}
-			err := f.value.set(value)
-			if err != nil {
-				return err
-			}
+			continue
+		}
+		if f.value.isBool() && value == "" {
+			value = "true"
+		}
+		if value == "" {
+			return fmt.Errorf("flag -%s has no value", name)
+		}
+		if err := f.value.set(value); err != nil {
+			return fmt.Errorf("flag -%s: %w", name, err)
 		}
 	}
 	return nil

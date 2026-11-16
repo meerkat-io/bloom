@@ -4,22 +4,23 @@ import (
 	"time"
 )
 
-// Timestamp return timestamp in second
+// Timestamp returns the current Unix timestamp in seconds.
 func Timestamp() int64 {
 	return time.Now().Unix()
 }
 
-// Unix return time from timestamp
+// Unix returns the time for a Unix timestamp in seconds.
 func Unix(sec int64) time.Time {
 	return time.Unix(sec, 0)
 }
 
-// Elapse time since the input timestamp
+// Elapse returns the time elapsed since the input timestamp (in seconds),
+// truncated to whole seconds.
 func Elapse(timestamp int64) time.Duration {
-	return time.Duration(Timestamp()-timestamp) * time.Second
+	return time.Since(Unix(timestamp)).Truncate(time.Second)
 }
 
-// Expired if timestamp is expired
+// Expired reports whether the current time is past the timestamp.
 func Expired(timestamp int64) bool {
 	return Timestamp() > timestamp
 }

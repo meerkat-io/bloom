@@ -12,7 +12,7 @@ func SnakeCase(src string) string {
 	return strings.Join(fields, "_")
 }
 
-// ToChainCase : convert argument to chain-case style string.
+// ChainCase : convert argument to chain-case style string.
 func ChainCase(src string) string {
 	fields := splitToLowerFields(src)
 	return strings.Join(fields, "-")
@@ -23,7 +23,7 @@ func CamelCase(src string) string {
 	fields := splitToLowerFields(src)
 	for i, f := range fields {
 		if i != 0 {
-			fields[i] = strings.Title(f)
+			fields[i] = capitalize(f)
 		}
 	}
 	return strings.Join(fields, "")
@@ -33,35 +33,44 @@ func CamelCase(src string) string {
 func PascalCase(src string) string {
 	fields := splitToLowerFields(src)
 	for i, f := range fields {
-		fields[i] = strings.Title(f)
+		fields[i] = capitalize(f)
 	}
 	return strings.Join(fields, "")
 }
 
 func splitToLowerFields(src string) []string {
-	fields := make([]string, 0)
-	for _, sf := range strings.Fields(src) {
-		for _, su := range strings.Split(sf, "_") {
-			for _, sh := range strings.Split(su, "-") {
-				for _, sc := range splitCamelCase(sh) {
-					fields = append(fields, strings.ToLower(sc))
-				}
-			}
+	var fields []string
+	for _, word := range strings.FieldsFunc(src, isSeparator) {
+		for _, sc := range splitCamelCase(word) {
+			fields = append(fields, strings.ToLower(sc))
 		}
 	}
 	return fields
+}
+
+func isSeparator(r rune) bool {
+	return r == '_' || r == '-' || unicode.IsSpace(r)
+}
+
+// capitalize upper-cases the first rune (replacement for deprecated strings.Title).
+func capitalize(s string) string {
+	r, size := utf8.DecodeRuneInString(s)
+	if size == 0 {
+		return s
+	}
+	return string(unicode.ToUpper(r)) + s[size:]
 }
 
 func splitCamelCase(src string) []string {
 	if !utf8.ValidString(src) {
 		return []string{src}
 	}
-	entries := []string{}
+	var entries []string
 	var runes [][]rune
 	lastClass := 0
 	class := 0
 	for _, r := range src {
-		switch true {
+		switch {
 		case unicode.IsLower(r):
 			class = 1
 		case unicode.IsUpper(r):

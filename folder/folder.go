@@ -2,19 +2,14 @@ package folder
 
 import "os"
 
-// If the folder path exists
-func Exists(folder string) bool {
-	if info, err := os.Stat(folder); err == nil && info.IsDir() {
-		return true
-	}
-	return false
+// Exists reports whether path exists and is a directory.
+func Exists(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.IsDir()
 }
 
-// Create folder recursively
+// Create creates the folder and any missing parents. It is a no-op if the
+// folder already exists.
 func Create(path string) error {
-	err := os.MkdirAll(path, 0750)
-	if err != nil && !os.IsExist(err) {
-		return err
-	}
-	return nil
+	return os.MkdirAll(path, 0o750)
 }

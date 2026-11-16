@@ -1,0 +1,40 @@
+name: Test
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Run tests with coverage
+        run: go test -race -covermode=atomic -coverprofile=coverage.out ./...
+
+      - name: Coverage summary
+        if: always()
+        run: |
+          {
+            echo "## Test coverage"
+            echo
+            if [ -f coverage.out ]; then
+              total=$(go tool cover -func=coverage.out | awk '/^total:/ {print $3}')
+              echo "**Total: ${total}**"
+              echo
+              echo "| Package | Coverage |"
+              echo "|---|---|"
+              go test -cover ./... 2>/dev/null | awk '/coverage:/ {printf "| %s | %s |\n", $2, $5}'
+            else
+              echo "Tests failed before coverage was produced."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
